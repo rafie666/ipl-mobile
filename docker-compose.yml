@@ -1,0 +1,12 @@
+services:
+  wargaku-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wargaku-app
+    image: wargaku-ipl:latest
+    restart: unless-stopped
+    ports:
+      - "5174:80"
+    environment:
+      - NODE_ENV=production
