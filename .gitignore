@@ -1,11 +1,15 @@
 # Dependencies
 node_modules/
+**/node_modules/
 
 # Expo
 .expo/
+**/.expo/
 .expo-shared/
+**/dist/
 dist/
 web-build/
+**/web-build/
 
 # Environment variables
 .env
