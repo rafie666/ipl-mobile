@@ -225,3 +225,15 @@ create index if not exists idx_wargaku_tagihan_total on wargaku_tagihan (((data-
 create index if not exists idx_wargaku_tagihan_status on wargaku_tagihan ((data->>'status'));
 create index if not exists idx_wargaku_tagihan_periode on wargaku_tagihan ((data->>'bulan'), (data->>'tahun'));
 
+-- =========================================================================
+-- SETUP SUPABASE STORAGE BUCKET: BUKTI TRANSFER & QRIS
+-- =========================================================================
+insert into storage.buckets (id, name, public)
+values ('bukti-transfer', 'bukti-transfer', true)
+on conflict (id) do update set public = true;
+
+drop policy if exists "Akses Publik Bukti Transfer" on storage.objects;
+create policy "Akses Publik Bukti Transfer" on storage.objects
+for all using (bucket_id = 'bukti-transfer') with check (bucket_id = 'bukti-transfer');
+
+

@@ -1,0 +1,15 @@
+{
+  "name": "wargaku-backend-scheduler",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Dedicated Backend Cron Scheduler for IPL Automated Billing (Asia/Jakarta timezone)",
+  "main": "scheduler.js",
+  "scripts": {
+    "start": "node scheduler.js",
+    "run-now": "node scheduler.js --run-now",
+    "test": "node scheduler.js --test"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.116.0"
+  }
+}
