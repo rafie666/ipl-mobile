@@ -286,6 +286,20 @@ export async function executeAutoBillingJob({ force = false } = {}) {
     const { error: insErr } = await supabase.from('wargaku_tagihan').upsert(dbPayload, { onConflict: 'id' })
     if (insErr) {
       console.error('Gagal menyimpan tagihan ke Supabase:', insErr.message)
+      const failedAutoBilling = {
+        ...autoBilling,
+        last_run_at: nowIso,
+        last_run_status: 'failed',
+        last_run_error: insErr.message,
+        last_run_message: `Gagal menyimpan tagihan ke database: ${insErr.message}`,
+        scheduler_heartbeat: nowIso,
+        scheduler_status: 'ERROR'
+      }
+      await supabase.from('wargaku_config').update({
+        data: { ...configData, autoBilling: failedAutoBilling },
+        updated_at: nowIso
+      }).eq('id', cfgRow.id)
+
       return { success: false, error: insErr.message }
     }
 

@@ -281,6 +281,31 @@ serve(async (req) => {
     })
   } catch (error: any) {
     console.error("Auto-Billing Error:", error)
+    try {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "https://dcefifwlfwycgmphpgtu.supabase.co"
+      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_ANON_KEY") ?? ""
+      const supabase = createClient(supabaseUrl, supabaseKey)
+      const nowIso = new Date().toISOString()
+      const { data: configRows } = await supabase.from("wargaku_config").select("*").limit(1)
+      if (configRows && configRows.length > 0) {
+        const row = configRows[0]
+        const currentData = row.data || {}
+        await supabase.from("wargaku_config").update({
+          data: {
+            ...currentData,
+            autoBilling: {
+              ...(currentData.autoBilling || {}),
+              last_run_at: nowIso,
+              last_run_status: "failed",
+              last_run_error: error?.message || "Unknown error",
+              last_run_message: `Gagal: ${error?.message || "Kesalahan server"}`
+            }
+          },
+          updated_at: nowIso
+        }).eq("id", row.id)
+      }
+    } catch (_) {}
+
     return new Response(JSON.stringify({
       success: false,
       error: error?.message || "Terjadi kesalahan internal server"

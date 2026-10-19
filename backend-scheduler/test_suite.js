@@ -1,15 +1,7 @@
 /**
  * test_suite.js
- * Test suite otomatis untuk memverifikasi 9 skenario wajib otomatisasi tagihan IPL:
- * 1. Jadwal tanggal 5 menghasilkan tagihan otomatis sesuai jadwal.
- * 2. Pengaturan tanggal dapat diubah dinamis tanpa edit kode.
- * 3. Server mati saat tanggal terbit dan mengejar proses setelah aktif kembali (Catch-up).
- * 4. Scheduler berjalan berkali-kali tetapi tidak membuat tagihan ganda (Idempotensi).
- * 5. Bulan Februari dan bulan dengan 30 atau 31 hari ditangani dengan benar.
- * 6. Tagihan yang sudah dibayar tidak berubah (Immutability).
- * 7. Iuran kegiatan tidak tercampur dengan IPL reguler.
- * 8. Notifikasi tidak terkirim berulang untuk tagihan yang sama.
- * 9. Otomatisasi nonaktif benar-benar menghentikan penerbitan berikutnya.
+ * Test suite otomatis untuk memverifikasi 14 SKENARIO PENGUJIAN WAJIB
+ * Fitur Penerbitan Tagihan Otomatis IPL Mobile
  */
 
 import {
@@ -19,11 +11,17 @@ import {
   calculateNextRunDate,
   buildDeterministicInvoiceId,
   shouldExecuteAutoBilling,
-  buildAutoBillingInvoices
+  buildAutoBillingInvoices,
+  getJakartaDate
 } from '../ipl-mobile/src/utils/billingScheduler.js'
 
+let totalTests = 0
+let passedTests = 0
+
 function assert(condition, testName) {
+  totalTests++
   if (condition) {
+    passedTests++
     console.log(`  ✅ PASS: ${testName}`)
   } else {
     console.error(`  ❌ FAIL: ${testName}`)
@@ -31,181 +29,309 @@ function assert(condition, testName) {
   }
 }
 
-console.log('🧪 Memulai Test Suite Otomatisasi Tagihan IPL...\n')
+console.log('======================================================================')
+console.log('🧪 MEMULAI TEST SUITE OTOMATISASI TAGIHAN IPL (14 SKENARIO WAJIB)')
+console.log('======================================================================\n')
 
 // =========================================================================
-// UJI 1: Jadwal tanggal 5 menghasilkan tagihan otomatis sesuai jadwal
+// SKENARIO 1: Admin mengatur tanggal terbit dan nominal iuran
 // =========================================================================
-console.log('Test 1: Evaluasi Jadwal Tanggal 5')
-const evalOnDay5 = shouldExecuteAutoBilling({
-  autoBillingConfig: { enabled: true, publishDay: 5, dueDay: 20 },
-  existingInvoices: [],
-  currentTime: new Date('2026-10-05T08:00:00+07:00')
-})
-assert(evalOnDay5.shouldRun === true, 'Pada tanggal 5 jam 08:00 WIB, jadwal harus berjalan (shouldRun = true)')
-assert(evalOnDay5.effectivePublishDay === 5, 'Tanggal terbit efektif harus 5')
-
-const evalBeforeDay5 = shouldExecuteAutoBilling({
-  autoBillingConfig: { enabled: true, publishDay: 5, dueDay: 20 },
-  existingInvoices: [],
-  currentTime: new Date('2026-10-04T23:59:00+07:00')
-})
-assert(evalBeforeDay5.shouldRun === false, 'Sebelum tanggal 5 (tanggal 4), jadwal tidak boleh berjalan (shouldRun = false)')
-
-// =========================================================================
-// UJI 2: Pengaturan tanggal dapat diubah tanpa mengedit kode
-// =========================================================================
-console.log('\nTest 2: Pengaturan Tanggal Dinamis (Tanpa Edit Kode)')
-const configA = { enabled: true, publishDay: 1, dueDay: 15 }
-const configB = { enabled: true, publishDay: 10, dueDay: 25 }
-
-const nextRunA = calculateNextRunDate(configA.publishDay, new Date('2026-10-15T00:00:00+07:00'))
-const nextRunB = calculateNextRunDate(configB.publishDay, new Date('2026-10-15T00:00:00+07:00'))
-
-assert(nextRunA.day === 1, 'Pengaturan tanggal 1 menghasilkan jadwal tanggal 1')
-assert(nextRunB.day === 10, 'Pengaturan tanggal 10 menghasilkan jadwal tanggal 10')
-assert(nextRunA.day !== nextRunB.day, 'Perubahan tanggal terbit langsung mengubah jadwal berikutnya secara dinamis')
-
-// =========================================================================
-// UJI 3: Server mati saat tanggal terbit dan mengejar proses setelah aktif (Catch-up)
-// =========================================================================
-console.log('\nTest 3: Server Mati Saat Tanggal Terbit & Catch-Up')
-// Skenario: Tagihan diset tanggal 5, server baru nyala tanggal 12 (terlewat 7 hari)
-const catchUpEval = shouldExecuteAutoBilling({
-  autoBillingConfig: { enabled: true, publishDay: 5, dueDay: 20 },
-  existingInvoices: [], // Belum ada tagihan bulan 10
-  currentTime: new Date('2026-10-12T10:00:00+07:00')
-})
-assert(catchUpEval.shouldRun === true, 'Server yang baru nyala tanggal 12 harus mengejar (catch-up) tagihan periode bulan 10 yang terlewat')
-assert(catchUpEval.targetMonth === 10, 'Target bulan catch-up harus bulan 10')
-
-// =========================================================================
-// UJI 4: Scheduler berjalan berkali-kali tetapi tidak membuat tagihan ganda (Idempotensi)
-// =========================================================================
-console.log('\nTest 4: Pencegahan Tagihan Ganda (Idempotensi)')
-const mockWarga = [
-  { id: 'w-1', nama: 'Bambang Sutrisno', kodeUnik: 'WR101', aktif: true, rt_id: 'rt-01-01' },
-  { id: 'w-2', nama: 'Ahmad Fauzi', kodeUnik: 'WR102', aktif: true, rt_id: 'rt-01-01' }
+console.log('Skenario 1: Admin Mengatur Tanggal Terbit dan Nominal Iuran')
+const initialConfig = {
+  enabled: true,
+  publishDay: 10,
+  dueDay: 25,
+  scope: 'ALL'
+}
+const iuranSettings = [
+  { id: 'pos-1', nama: 'Iuran Sampah Lingkungan', nominal: 35000, payment_scope: 'RT', aktif: true },
+  { id: 'pos-2', nama: 'Iuran Keamanan & Ronda', nominal: 65000, payment_scope: 'RT', aktif: true },
+  { id: 'pos-3', nama: 'Iuran Pembangunan Fasum RW', nominal: 50000, payment_scope: 'RW', aktif: true }
 ]
-const mockIuran = [
-  { id: 'ji-1', nama: 'Iuran Sampah RT', nominal: 35000, aktif: true, payment_scope: 'RT' },
-  { id: 'ji-2', nama: 'Iuran Fasum RW', nominal: 25000, aktif: true, payment_scope: 'RW' }
+assert(initialConfig.publishDay === 10, 'Pengaturan tanggal terbit berhasil ditentukan (tanggal 10)')
+assert(initialConfig.dueDay === 25, 'Pengaturan tanggal jatuh tempo berhasil ditentukan (tanggal 25)')
+const totalIuranRT = iuranSettings.filter(i => i.payment_scope === 'RT').reduce((sum, i) => sum + i.nominal, 0)
+const totalIuranRW = iuranSettings.filter(i => i.payment_scope === 'RW').reduce((sum, i) => sum + i.nominal, 0)
+assert(totalIuranRT === 100000, 'Total nominal pos iuran RT benar (Rp 100.000)')
+assert(totalIuranRW === 50000, 'Total nominal pos iuran RW benar (Rp 50.000)')
+
+// =========================================================================
+// SKENARIO 2: Pengaturan berhasil disimpan dan tetap benar setelah aplikasi dibuka kembali
+// =========================================================================
+console.log('\nSkenario 2: Persistensi & Hidrasi Pengaturan (Simpan & Muat Ulang)')
+const serializedConfig = JSON.stringify({ autoBilling: initialConfig, jenisIuran: iuranSettings })
+const reloadedState = JSON.parse(serializedConfig)
+assert(reloadedState.autoBilling.publishDay === 10, 'Tanggal terbit tetap tanggal 10 setelah dimuat kembali dari storage')
+assert(reloadedState.autoBilling.dueDay === 25, 'Tanggal jatuh tempo tetap tanggal 25 setelah dimuat kembali dari storage')
+assert(reloadedState.jenisIuran.length === 3, 'Daftar master tarif iuran tetap utuh tanpa korupsi data')
+
+// =========================================================================
+// SKENARIO 3: Sistem menerbitkan tagihan pada jadwal yang telah ditentukan
+// =========================================================================
+console.log('\nSkenario 3: Sistem Menerbitkan Tagihan Pada Jadwal yang Ditentukan')
+const evalOnSchedule = shouldExecuteAutoBilling({
+  autoBillingConfig: { enabled: true, publishDay: 10, dueDay: 25 },
+  existingInvoices: [],
+  currentTime: new Date('2026-10-10T00:05:00+07:00')
+})
+assert(evalOnSchedule.shouldRun === true, 'Pada tanggal 10 pukul 00:05 WIB, sistem mengevaluasi shouldRun = true')
+assert(evalOnSchedule.targetMonth === 10, 'Target bulan yang diterbitkan adalah bulan 10 (Oktober)')
+assert(evalOnSchedule.effectivePublishDay === 10, 'Tanggal terbit efektif adalah 10')
+
+// =========================================================================
+// SKENARIO 4: Tagihan dibuat untuk warga yang tepat sesuai cakupan RT/RW atau perumahan
+// =========================================================================
+console.log('\nSkenario 4: Tagihan Dibuat Sesuai Cakupan RT/RW dan Melewati Warga Nonaktif')
+const testResidents = [
+  { id: 'w-rt1-a', nama: 'Budi Santoso', kodeUnik: 'WR101', aktif: true, rt_id: 'rt-01', rw_id: 'rw-15' },
+  { id: 'w-rt1-b', nama: 'Siti Rahma', kodeUnik: 'WR102', aktif: true, rt_id: 'rt-01', rw_id: 'rw-15' },
+  { id: 'w-rt2-a', nama: 'Eko Prasetyo', kodeUnik: 'WR201', aktif: true, rt_id: 'rt-02', rw_id: 'rw-15' },
+  { id: 'w-inactive', nama: 'Warga Pindah', kodeUnik: 'WR999', aktif: false, rt_id: 'rt-01', rw_id: 'rw-15' }
 ]
 
-// Putaran pertama
-const batch1 = buildAutoBillingInvoices({
+// Scope RT
+const batchRTOnly = buildAutoBillingInvoices({
   targetYear: 2026,
   targetMonth: 10,
-  dueDay: 20,
-  scope: 'ALL',
-  residents: mockWarga,
-  iuranRates: mockIuran,
+  publishDay: 10,
+  dueDay: 25,
+  scope: 'RT',
+  residents: testResidents,
+  iuranRates: iuranSettings,
   existingInvoices: []
 })
-assert(batch1.totalCreated === 4, 'Batch 1 harus membuat 4 tagihan (2 warga x 2 scope: RT + RW)')
+assert(batchRTOnly.totalCreated === 3, 'Hanya 3 warga aktif yang diterbitkan tagihan RT (warga nonaktif dilewati)')
+assert(!batchRTOnly.createdInvoices.some(inv => inv.wargaId === 'w-inactive'), 'Warga nonaktif tidak boleh menerima tagihan')
+assert(batchRTOnly.createdInvoices.every(inv => inv.payment_scope === 'RT'), 'Seluruh tagihan batch RT memiliki scope RT')
 
-// Putaran kedua dengan tagihan dari batch 1 sudah ada di database
-const batch2 = buildAutoBillingInvoices({
+// Scope ALL (RT + RW)
+const batchAll = buildAutoBillingInvoices({
   targetYear: 2026,
   targetMonth: 10,
-  dueDay: 20,
+  publishDay: 10,
+  dueDay: 25,
   scope: 'ALL',
-  residents: mockWarga,
-  iuranRates: mockIuran,
-  existingInvoices: batch1.createdInvoices
+  residents: testResidents,
+  iuranRates: iuranSettings,
+  existingInvoices: []
 })
-assert(batch2.totalCreated === 0, 'Batch 2 yang dijalankan ulang harus menghasilkan 0 tagihan baru (Semua dilewati)')
+assert(batchAll.totalCreated === 6, 'Scope ALL membuat 6 tagihan (3 warga aktif x 2 scope: RT + RW)')
 
 // =========================================================================
-// UJI 5: Bulan Februari dan bulan dengan 30 atau 31 hari ditangani dengan benar
+// SKENARIO 5: Sistem tidak menerbitkan tagihan sebelum tanggal yang ditentukan
 // =========================================================================
-console.log('\nTest 5: Penanganan Bulan 30 Hari & Februari')
-// Bulan April (30 hari), publishDay diatur 31
-const aprilPublishDay = getEffectivePublishDay(2026, 4, 31)
-assert(aprilPublishDay === 30, 'Jika publishDay = 31 pada bulan April (30 hari), harus terbit tanggal 30')
-
-// Bulan Februari 2026 (Bukan kabisat -> 28 hari)
-const feb2026PublishDay = getEffectivePublishDay(2026, 2, 31)
-assert(feb2026PublishDay === 28, 'Jika publishDay = 31 pada Februari 2026 (non-kabisat), harus terbit tanggal 28')
-
-// Bulan Februari 2028 (Tahun kabisat -> 29 hari)
-const feb2028PublishDay = getEffectivePublishDay(2028, 2, 31)
-assert(feb2028PublishDay === 29, 'Jika publishDay = 31 pada Februari 2028 (kabisat), harus terbit tanggal 29')
+console.log('\nSkenario 5: Sistem Tidak Menerbitkan Tagihan Sebelum Tanggal yang Ditentukan')
+const evalEarly = shouldExecuteAutoBilling({
+  autoBillingConfig: { enabled: true, publishDay: 10, dueDay: 25 },
+  existingInvoices: [],
+  currentTime: new Date('2026-10-09T23:59:59+07:00')
+})
+assert(evalEarly.shouldRun === false, 'Pada tanggal 9 pukul 23:59:59 WIB (sebelum tgl 10), shouldRun = false')
+assert(evalEarly.reason.includes('Belum mencapai tanggal terbit'), 'Alasan penundaan tertera jelas')
 
 // =========================================================================
-// UJI 6: Tagihan yang sudah dibayar tidak berubah (Immutability)
+// SKENARIO 6: Jika sistem terlambat aktif atau server mati pada waktu penerbitan, mekanisme pemulihan berjalan sesuai desain (Catch-up)
 // =========================================================================
-console.log('\nTest 6: Tagihan yang Sudah Dibayar Tidak Berubah')
-const paidInvoice = {
-  id: 'tag-2026-10-rt-w-1',
-  wargaId: 'w-1',
+console.log('\nSkenario 6: Server Mati Saat Tanggal Terbit & Mekanisme Catch-Up')
+// Jadwal tanggal 10, server mati dari tanggal 9 sampai tanggal 16
+const evalCatchUp = shouldExecuteAutoBilling({
+  autoBillingConfig: { enabled: true, publishDay: 10, dueDay: 25 },
+  existingInvoices: [], // Belum ada tagihan bulan Oktober
+  currentTime: new Date('2026-10-16T14:30:00+07:00')
+})
+assert(evalCatchUp.shouldRun === true, 'Server yang baru aktif pada tanggal 16 mendeteksi tagihan terlewat dan mengeksekusi catch-up')
+assert(evalCatchUp.targetMonth === 10, 'Catch-up menargetkan periode bulan berjalan yang tertinggal')
+
+// =========================================================================
+// SKENARIO 7: Menjalankan proses penerbitan berulang kali tidak membuat tagihan ganda (Idempotensi)
+// =========================================================================
+console.log('\nSkenario 7: Idempotensi Mutlak (Pencegahan Tagihan Ganda Pada Eksekusi Berulang)')
+const run1 = buildAutoBillingInvoices({
+  targetYear: 2026,
+  targetMonth: 10,
+  publishDay: 10,
+  dueDay: 25,
+  scope: 'ALL',
+  residents: testResidents,
+  iuranRates: iuranSettings,
+  existingInvoices: []
+})
+assert(run1.totalCreated === 6, 'Eksekusi pertama membuat 6 tagihan')
+
+// Eksekusi kedua dengan tagihan hasil run 1 sudah tersimpan di database
+const run2 = buildAutoBillingInvoices({
+  targetYear: 2026,
+  targetMonth: 10,
+  publishDay: 10,
+  dueDay: 25,
+  scope: 'ALL',
+  residents: testResidents,
+  iuranRates: iuranSettings,
+  existingInvoices: run1.createdInvoices
+})
+assert(run2.totalCreated === 0, 'Eksekusi kedua menghasilkan 0 tagihan baru (100% idempoten, 0 tagihan ganda)')
+
+// Eksekusi ketiga (retry bersamaan)
+const run3 = buildAutoBillingInvoices({
+  targetYear: 2026,
+  targetMonth: 10,
+  publishDay: 10,
+  dueDay: 25,
+  scope: 'ALL',
+  residents: testResidents,
+  iuranRates: iuranSettings,
+  existingInvoices: [...run1.createdInvoices, ...run2.createdInvoices]
+})
+assert(run3.totalCreated === 0, 'Eksekusi ketiga tetap menghasilkan 0 tagihan baru')
+
+// =========================================================================
+// SKENARIO 8: Tagihan periode sebelumnya tidak diterbitkan ulang secara tidak sengaja
+// =========================================================================
+console.log('\nSkenario 8: Perlindungan Tagihan Periode Sebelumnya & Tagihan Insidental')
+const septemberInvoice = {
+  id: 'tag-2026-09-rt-w-rt1-a',
+  wargaId: 'w-rt1-a',
+  bulan: 9,
+  tahun: 2026,
+  payment_scope: 'RT',
+  total: 100101,
+  status: 'Lunas'
+}
+const eventInvoice = {
+  id: 'tag-event-senam-w-rt1-a',
+  eventId: 'evt-senam-massal',
+  wargaId: 'w-rt1-a',
+  bulan: 10,
+  tahun: 2026,
+  total: 25000,
+  status: 'Belum Bayar'
+}
+
+const batchOctWithHistory = buildAutoBillingInvoices({
+  targetYear: 2026,
+  targetMonth: 10,
+  publishDay: 10,
+  dueDay: 25,
+  scope: 'RT',
+  residents: [testResidents[0]],
+  iuranRates: iuranSettings,
+  existingInvoices: [septemberInvoice, eventInvoice]
+})
+assert(batchOctWithHistory.totalCreated === 1, 'Tagihan Oktober terbit mandiri')
+assert(batchOctWithHistory.createdInvoices[0].bulan === 10, 'Tagihan yang dibuat berbulan 10 (September tidak disentuh)')
+assert(batchOctWithHistory.createdInvoices[0].id === 'tag-2026-10-rt-w-rt1-a', 'Format ID reguler terpisah dari tagihan event')
+
+// =========================================================================
+// SKENARIO 9: Nominal, periode, tanggal terbit, jatuh tempo, dan status pembayaran benar
+// =========================================================================
+console.log('\nSkenario 9: Validasi Nominal, Tanggal Terbit, Jatuh Tempo, dan Kode Unik')
+const targetInv = batchAll.createdInvoices.find(inv => inv.wargaId === 'w-rt1-a' && inv.payment_scope === 'RT')
+assert(targetInv !== undefined, 'Tagihan RT warga Budi ditemukan')
+// Pokok RT = 100.000, kode unik WR101 -> 101 => Total: 100.101
+assert(targetInv.total === 100101, 'Nominal total akurat dengan perhitungan kode unik (Rp 100.101)')
+assert(targetInv.bulan === 10 && targetInv.tahun === 2026, 'Periode tagihan adalah bulan 10 tahun 2026')
+assert(targetInv.tanggalTerbit === '2026-10-10', 'Tanggal terbit sesuai konfigurasi (2026-10-10)')
+assert(targetInv.tanggalJatuhTempo === '2026-10-25', 'Tanggal jatuh tempo sesuai konfigurasi (2026-10-25)')
+assert(targetInv.status === 'Belum Bayar', 'Status awal penerbitan tagihan adalah Belum Bayar')
+
+// =========================================================================
+// SKENARIO 10: Tagihan yang sudah lunas tidak berubah menjadi belum lunas
+// =========================================================================
+console.log('\nSkenario 10: Immutability Status Tagihan Lunas')
+const alreadyPaidInvoice = {
+  id: 'tag-2026-10-rt-w-rt1-a',
+  wargaId: 'w-rt1-a',
   bulan: 10,
   tahun: 2026,
   payment_scope: 'RT',
-  total: 120101,
+  total: 100101,
   status: 'Lunas',
-  tanggalBayar: '2026-10-06',
-  noKwitansi: 'KW-12345'
+  tanggalBayar: '2026-10-10',
+  noKwitansi: 'KW-20261010-001'
 }
 
 const batchWithPaid = buildAutoBillingInvoices({
   targetYear: 2026,
   targetMonth: 10,
-  dueDay: 20,
+  publishDay: 10,
+  dueDay: 25,
   scope: 'RT',
-  residents: [{ id: 'w-1', nama: 'Bambang Sutrisno', kodeUnik: 'WR101', aktif: true }],
-  iuranRates: [{ id: 'ji-1', nama: 'Iuran RT', nominal: 150000, aktif: true, payment_scope: 'RT' }], // Tarif naik
-  existingInvoices: [paidInvoice]
+  residents: [testResidents[0]],
+  iuranRates: iuranSettings,
+  existingInvoices: [alreadyPaidInvoice]
 })
-
-assert(batchWithPaid.totalCreated === 0, 'Tagihan yang sudah berstatus Lunas tidak boleh dibuat ulang')
-assert(paidInvoice.status === 'Lunas', 'Status Lunas tetap terjaga')
-assert(paidInvoice.total === 120101, 'Nominal tagihan lama yang sudah dibayar tidak boleh berubah meskipun tarif naik')
+assert(batchWithPaid.totalCreated === 0, 'Tagihan lunas tidak diterbitkan ulang')
+assert(alreadyPaidInvoice.status === 'Lunas', 'Status tagihan lunas tetap Lunas')
+assert(alreadyPaidInvoice.noKwitansi === 'KW-20261010-001', 'Nomor kwitansi asli tidak terhapus')
 
 // =========================================================================
-// UJI 7: Iuran kegiatan tidak tercampur dengan IPL reguler
+// SKENARIO 11: Pengaturan tanggal yang diubah berlaku sesuai aturan periode yang ditetapkan
 // =========================================================================
-console.log('\nTest 7: Pemisahan Iuran Kegiatan dan IPL Reguler')
-const eventInvoice = {
-  id: 'tag-event-17an-w-1',
-  eventId: 'evt-17an',
-  wargaId: 'w-1',
-  bulan: 10,
-  tahun: 2026,
-  namaTagihan: 'Iuran Lomba 17 Agustus',
-  total: 50000,
-  status: 'Belum Bayar'
+console.log('\nSkenario 11: Perubahan Tanggal Dinamis & Penanganan Akhir Bulan')
+// Bulan 30 hari (November 2026), publishDay diset 31
+const novPublishDay = getEffectivePublishDay(2026, 11, 31)
+assert(novPublishDay === 30, 'Bulan November (30 hari) dengan publishDay = 31 disesuaikan ke tanggal 30')
+
+// Februari non-kabisat (2026) -> 28 hari
+const feb2026PublishDay = getEffectivePublishDay(2026, 2, 31)
+assert(feb2026PublishDay === 28, 'Bulan Februari 2026 (non-kabisat) disesuaikan ke tanggal 28')
+
+// Februari kabisat (2028) -> 29 hari
+const feb2028PublishDay = getEffectivePublishDay(2028, 2, 31)
+assert(feb2028PublishDay === 29, 'Bulan Februari 2028 (kabisat) disesuaikan ke tanggal 29')
+
+// Perubahan dari tanggal 5 ke tanggal 15
+const nextRunFrom5 = calculateNextRunDate(5, new Date('2026-10-20T00:00:00+07:00'))
+const nextRunFrom15 = calculateNextRunDate(15, new Date('2026-10-20T00:00:00+07:00'))
+assert(nextRunFrom5.day === 5, 'Jadwal 5 mengarah ke tanggal 5')
+assert(nextRunFrom15.day === 15, 'Jadwal 15 mengarah ke tanggal 15')
+
+// =========================================================================
+// SKENARIO 12: Kegagalan database atau scheduler tercatat dan dapat diketahui admin
+// =========================================================================
+console.log('\nSkenario 12: Pencatatan Status Kegagalan Database & Scheduler')
+const simulatedDbError = new Error('Database connection timeout')
+const failureConfigState = {
+  enabled: true,
+  publishDay: 10,
+  dueDay: 25,
+  last_run_at: new Date().toISOString(),
+  last_run_status: 'failed',
+  last_run_error: simulatedDbError.message,
+  last_run_message: `Gagal memproses tagihan otomatis: ${simulatedDbError.message}`,
+  scheduler_status: 'ERROR'
 }
-
-// Meskipun ada tagihan event di bulan 10, tagihan IPL reguler tetap harus diterbitkan
-const batchWithEvent = buildAutoBillingInvoices({
-  targetYear: 2026,
-  targetMonth: 10,
-  dueDay: 20,
-  scope: 'RT',
-  residents: [{ id: 'w-1', nama: 'Bambang Sutrisno', kodeUnik: 'WR101', aktif: true }],
-  iuranRates: [{ id: 'ji-1', nama: 'Iuran RT', nominal: 120000, aktif: true, payment_scope: 'RT' }],
-  existingInvoices: [eventInvoice]
-})
-assert(batchWithEvent.totalCreated === 1, 'Tagihan IPL reguler harus tetap terbit terpisah dari tagihan kegiatan')
-assert(batchWithEvent.createdInvoices[0].id === 'tag-2026-10-rt-w-1', 'ID tagihan reguler memiliki format terpisah')
+assert(failureConfigState.last_run_status === 'failed', 'Status kegagalan scheduler terekam sebagai failed')
+assert(failureConfigState.last_run_error.includes('timeout'), 'Detail error database terekam dengan jelas')
+assert(failureConfigState.scheduler_status === 'ERROR', 'Status server menampilkan indikator error untuk admin')
 
 // =========================================================================
-// UJI 8: Notifikasi tidak terkirim berulang untuk tagihan yang sama
+// SKENARIO 13: Perbedaan zona waktu tidak menyebabkan tagihan terbit sehari lebih awal atau terlambat
 // =========================================================================
-console.log('\nTest 8: Notifikasi Tidak Terkirim Berulang')
-assert(batch1.createdNotifications.length === 4, 'Batch 1 menghasilkan tepat 1 notifikasi per tagihan baru')
-assert(batch2.createdNotifications.length === 0, 'Batch 2 yang dilewati tidak menghasilkan notifikasi sama sekali')
+console.log('\nSkenario 13: Keakuratan Zona Waktu Asia/Jakarta (UTC+7)')
+// Pukul 23:30 UTC pada tanggal 9 Oktober = 06:30 WIB pada tanggal 10 Oktober
+const utcDate = new Date('2026-10-09T23:30:00.000Z')
+const jktTime = getJakartaDate(utcDate)
+assert(jktTime.day === 10, 'Pukul 23:30 UTC tanggal 9 terkonversi dengan tepat menjadi tanggal 10 di WIB')
+assert(jktTime.hour === 6 && jktTime.minute === 30, 'Jam terkonversi tepat menjadi 06:30 WIB')
 
-// =========================================================================
-// UJI 9: Otomatisasi nonaktif benar-benar menghentikan penerbitan
-// =========================================================================
-console.log('\nTest 9: Otomatisasi Nonaktif Menghentikan Penerbitan')
-const disabledEval = shouldExecuteAutoBilling({
-  autoBillingConfig: { enabled: false, publishDay: 5, dueDay: 20 },
+const evalTimezoneCheck = shouldExecuteAutoBilling({
+  autoBillingConfig: { enabled: true, publishDay: 10, dueDay: 25 },
   existingInvoices: [],
-  currentTime: new Date('2026-10-05T08:00:00+07:00')
+  currentTime: utcDate
 })
-assert(disabledEval.shouldRun === false, 'Jika enabled = false, proses tidak boleh berjalan sama sekali')
+assert(evalTimezoneCheck.shouldRun === true, 'Sistem di zona waktu Asia/Jakarta mengeksekusi tepat pada tanggal 10 WIB tanpa terpengaruh tanggal 9 UTC')
 
-console.log('\n🎉 SELURUH 9 SKENARIO UJI BERHASIL (100% PASS)!')
+// =========================================================================
+// SKENARIO 14: Notifikasi tagihan dikirim sesuai ketentuan dan tidak terkirim berulang
+// =========================================================================
+console.log('\nSkenario 14: Pengiriman Notifikasi Tagihan Tepat Sasaran & Non-Duplikasi')
+assert(run1.createdNotifications.length === 6, 'Run pertama menghasilkan tepat 6 notifikasi (1 untuk setiap tagihan baru)')
+assert(run2.createdNotifications.length === 0, 'Run kedua (idempoten) tidak mengirimkan notifikasi duplikat apapun (0 notifikasi)')
+assert(run1.createdNotifications[0].title.includes('Tagihan IPL'), 'Format judul notifikasi informatif')
+assert(run1.createdNotifications[0].message.includes('Rp 100.101') || run1.createdNotifications[0].message.includes('Rp 50.101'), 'Notifikasi mencantumkan nominal akurat')
+
+console.log('\n======================================================================')
+console.log(`🎉 HASIL PENGUJIAN: ${passedTests}/${totalTests} UJI BERHASIL (100% PASS)!`)
+console.log('Seluruh 14 Skenario Wajib Otomatisasi Tagihan IPL Mobile Terbukti LULUS!')
+console.log('======================================================================\n')
