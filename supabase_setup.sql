@@ -116,6 +116,13 @@ create table if not exists wargaku_kontak_darurat (
   updated_at timestamptz default now()
 );
 
+-- 17. Buat Tabel Log Mutasi Gateway Moota (Staging & Audit Trail Bank Mutation)
+create table if not exists wargaku_moota_mutations (
+  id text primary key,
+  data jsonb not null,
+  updated_at timestamptz default now()
+);
+
 -- =========================================================================
 -- ENABLE ROW LEVEL SECURITY (RLS)
 -- =========================================================================
@@ -135,6 +142,7 @@ alter table wargaku_audit_logs enable row level security;
 alter table wargaku_pengaduan enable row level security;
 alter table wargaku_surat enable row level security;
 alter table wargaku_kontak_darurat enable row level security;
+alter table wargaku_moota_mutations enable row level security;
 
 -- =========================================================================
 -- KEBIJAKAN AKSES RLS (CLIENT-SIDE DUAL-STORAGE ARCHITECTURE)
@@ -188,6 +196,9 @@ create policy "Akses wargaku_surat" on wargaku_surat for all using (true) with c
 drop policy if exists "Akses wargaku_kontak_darurat" on wargaku_kontak_darurat;
 create policy "Akses wargaku_kontak_darurat" on wargaku_kontak_darurat for all using (true) with check (true);
 
+drop policy if exists "Akses wargaku_moota_mutations" on wargaku_moota_mutations;
+create policy "Akses wargaku_moota_mutations" on wargaku_moota_mutations for all using (true) with check (true);
+
 -- =========================================================================
 -- AKTIFKAN REALTIME PUBLIKASI
 -- =========================================================================
@@ -209,6 +220,7 @@ begin
   alter publication supabase_realtime add table wargaku_pengaduan;
   alter publication supabase_realtime add table wargaku_surat;
   alter publication supabase_realtime add table wargaku_kontak_darurat;
+  alter publication supabase_realtime add table wargaku_moota_mutations;
 exception when others then
   null; -- Abaikan jika ada tabel yang sudah terdaftar di publication
 end $$;
@@ -224,6 +236,9 @@ create index if not exists idx_wargaku_warga_kode_unik on wargaku_warga ((data->
 create index if not exists idx_wargaku_tagihan_total on wargaku_tagihan (((data->>'total')::numeric));
 create index if not exists idx_wargaku_tagihan_status on wargaku_tagihan ((data->>'status'));
 create index if not exists idx_wargaku_tagihan_periode on wargaku_tagihan ((data->>'bulan'), (data->>'tahun'));
+create index if not exists idx_wargaku_moota_mutation_id on wargaku_moota_mutations ((data->>'mutation_id'));
+create index if not exists idx_wargaku_moota_status on wargaku_moota_mutations ((data->>'status'));
+create index if not exists idx_wargaku_moota_amount on wargaku_moota_mutations (((data->>'amount')::numeric));
 
 -- =========================================================================
 -- SETUP SUPABASE STORAGE BUCKET: BUKTI TRANSFER & QRIS

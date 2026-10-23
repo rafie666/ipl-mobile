@@ -39,6 +39,7 @@ export const STORAGE_KEYS = {
   QRIS_ACCOUNTS: 'wargaku_qris_accounts',
   NOTIFICATIONS: 'wargaku_notifications',
   AUDIT_LOGS: 'wargaku_audit_logs',
+  MOOTA_MUTATIONS: 'wargaku_moota_mutations',
   SEEDED: 'wargaku_seeded_v11'
 }
 

@@ -14,7 +14,8 @@ import {
   Filter,
   PlusCircle,
   FileCheck,
-  AlertCircle
+  AlertCircle,
+  Zap
 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import { formatRupiah, formatTanggalIndo, NAMA_BULAN, generateWaReminder, generateWaKwitansi } from '../../utils/formatters'
@@ -323,10 +324,17 @@ export default function IuranView({ onOpenGenerate, onOpenTambahTagihan }) {
                             Lunas
                           </span>
                         ) : item.status === 'Menunggu Verifikasi' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 animate-pulse">
-                            <Clock className="w-3.5 h-3.5 text-amber-600" />
-                            Verifikasi Struk
-                          </span>
+                          (item.metodeBayar?.includes('Transfer') || !item.metodeBayar || item.metodeBayar === 'Transfer Bank') ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300">
+                              <Zap className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+                              Sedang Dicek Bot Moota
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 animate-pulse">
+                              <Clock className="w-3.5 h-3.5 text-amber-600" />
+                              Verifikasi Struk
+                            </span>
+                          )
                         ) : item.status === 'Perlu Diperbaiki' || item.status === 'Ditolak' ? (
                           <div className="space-y-0.5">
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-orange-100 text-orange-900 border border-orange-300">
@@ -374,7 +382,16 @@ export default function IuranView({ onOpenGenerate, onOpenTambahTagihan }) {
                           
                           {/* JIKA MENUNGGU VERIFIKASI */}
                           {item.status === 'Menunggu Verifikasi' ? (
-                            <>
+                            (item.metodeBayar?.includes('Transfer') || !item.metodeBayar || item.metodeBayar === 'Transfer Bank') ? (
+                              <button
+                                onClick={() => setSelectedTagihanVerifikasi(item)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold transition-all shadow-xs"
+                                title="Pantau Status Bot Moota"
+                              >
+                                <Zap className="w-3.5 h-3.5 text-emerald-600" />
+                                Pantau Bot
+                              </button>
+                            ) : (
                               <button
                                 onClick={() => setSelectedTagihanVerifikasi(item)}
                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-all shadow-xs"
@@ -383,7 +400,7 @@ export default function IuranView({ onOpenGenerate, onOpenTambahTagihan }) {
                                 <FileCheck className="w-3.5 h-3.5" />
                                 Cek Bukti
                               </button>
-                            </>
+                            )
                           ) : !isPaid ? (
                             <>
                               <button

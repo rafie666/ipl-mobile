@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { X, Check, AlertTriangle, Image, Calendar, User, Building, MessageCircle, DollarSign, Ban, History, FileText, ChevronRight } from 'lucide-react'
+import { X, Check, AlertTriangle, Image, Calendar, User, Building, MessageCircle, DollarSign, Ban, History, FileText, ChevronRight, Zap } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import { formatRupiah, formatTanggalIndo, NAMA_BULAN } from '../../utils/formatters'
 import { ALASAN_PENOLAKAN_PRESET } from '../../data/initialData'
@@ -99,6 +99,19 @@ export default function VerifikasiBuktiModal() {
         {/* Modal Body */}
         <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
           
+          {/* Banner Informasi Bot Moota */}
+          {(tagihan.metodeBayar?.includes('Transfer') || !tagihan.metodeBayar || tagihan.metodeBayar === 'Transfer Bank') && (
+            <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-800 space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-emerald-900">
+                <Zap className="w-4 h-4 text-emerald-600 animate-pulse" />
+                <span>⚡ Sedang Dicek Bot Moota</span>
+              </div>
+              <p className="text-[11px] text-emerald-700 leading-relaxed">
+                Pembayaran transfer ini dipantau otomatis oleh Bot Moota. Anda tidak perlu menyetujui secara manual. Begitu mutasi bank terdeteksi, tagihan akan otomatis LUNAS. Opsi persetujuan di bawah bersifat opsional (darurat).
+              </p>
+            </div>
+          )}
+
           {/* Info Warga & Tagihan */}
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 text-xs space-y-1.5">
             <div className="flex justify-between items-center">
